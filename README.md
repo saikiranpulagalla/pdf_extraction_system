@@ -25,19 +25,35 @@ User Upload PDF → Streamlit UI → PDF Text Extraction → LangChain Pipeline
 ```
 pdf-extraction-system/
 ├── app/
-│   ├── main.py                    # Streamlit UI
+│   ├── __init__.py
+│   ├── main.py                    # Main entry point
+│   ├── streamlit_app.py           # Streamlit UI for PDF extraction
 │   └── pipeline/
-│       ├── pdf_loader.py          # PDF text extraction
-│       ├── extractor.py           # LangChain LLM pipeline
-│       ├── schema.py              # Pydantic validation
-│       ├── model_selector.py      # OpenAI/Gemini fallback
-│       └── excel_writer.py        # JSON to Excel converter
+│       ├── __init__.py
+│       ├── pdf_loader.py          # PDF text extraction using pdfplumber
+│       ├── extractor.py           # LangChain LLM pipeline with retry logic
+│       ├── schema.py              # Pydantic validation schemas
+│       ├── model_selector.py      # OpenAI/Gemini model fallback logic
+│       ├── excel_writer.py        # JSON to Excel converter
+│       └── __pycache__/
 ├── prompts/
-│   └── extraction_prompt.txt      # LLM extraction instructions
+│   └── extraction_prompt.txt      # LLM extraction instructions & format
 ├── tests/
-├── requirements.txt
-├── .env.example
-└── README.md
+│   ├── __init__.py
+│   ├── test_extractor.py          # Tests for LLM extraction pipeline
+│   ├── test_pdf_loader.py         # Tests for PDF text extraction
+│   ├── test_schema.py             # Tests for validation schemas
+│   ├── test_model_selector.py     # Tests for model selection logic
+│   └── test_excel_writer.py       # Tests for Excel generation
+├── .env.example                   # Example environment file
+├── .gitignore                     # Git ignore rules
+├── pyproject.toml                 # Project metadata and dependencies
+├── requirements.txt               # Python package dependencies
+├── main.py                        # Legacy entry point (use app/main.py)
+├── test_extraction.py             # Manual extraction tests
+├── test_gemini.py                 # Gemini model tests
+├── test_gemini_configs.py         # Gemini configuration tests
+└── README.md                      # This file
 ```
 
 ## 🚀 Quick Start
@@ -45,7 +61,7 @@ pdf-extraction-system/
 ### 1. Clone Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/saikiranpulagalla/pdf_extraction_system.git
 cd pdf-extraction-system
 ```
 
@@ -90,7 +106,7 @@ GOOGLE_API_KEY=your-google-gemini-key-here
 ### 5. Run Application
 
 ```bash
-streamlit run app/main.py
+streamlit run app/streamlit_app.py
 ```
 
 The application will open in your browser at `http://localhost:8501`
@@ -201,11 +217,13 @@ Uses `pdfplumber` to extract text with formatting preservation:
 
 ### 2. LLM Processing
 
-LangChain orchestrates the extraction:
+LangChain orchestrates the extraction with robust error handling:
 - Sends text to OpenAI GPT-4o (primary)
-- Falls back to Google Gemini on failure
-- Uses carefully designed extraction prompt
-- Retries up to 3 times on errors
+- Logs response preview (first 1000 chars) for debugging
+- Validates response is not empty before parsing
+- Falls back to Google Gemini on any failure
+- Retries up to 3 times with exponential backoff (2-10 seconds)
+- Includes response snippet in error messages for troubleshooting
 
 ### 3. Structured Output
 
@@ -261,15 +279,39 @@ Converts JSON to formatted Excel:
 **Error: "PDF has no pages"**
 - Solution: Ensure PDF is not corrupted and has content
 
-**Error: "Failed to parse JSON"**
-- Solution: LLM output may be malformed - system will retry automatically
+**Error: "Failed to parse JSON from LLM response"**
+- Solution: System automatically logs response preview for debugging. Check that:
+  - API keys are valid and have sufficient quota
+  - Internet connection is stable
+  - Model endpoints are accessible
+  - LLM will retry up to 3 times automatically, then fallback to alternate model
+
+**Error: "Empty LLM response"**
+- Solution: Model returned no content. This often indicates:
+  - Rate limiting or temporary API issues
+  - Invalid API key or insufficient quota
+  - Network connectivity problem
+  - System automatically retries with fallback model
 
 **Error: "PDF appears to be empty or contains only images"**
 - Solution: PDF must have extractable text (not scanned images)
 
 ### Debug Mode
 
-Enable verbose logging:
+The system logs LLM response previews to help troubleshoot extraction failures:
+
+- **Response Preview**: First 1000 characters of LLM response printed before parsing
+- **Error Details**: Failed responses include a snippet of the actual content
+- **Retry Information**: Console shows which model is being used and retry attempts
+
+Example console output:
+```
+LLM response preview (len=2048): '{"Basic Details": {...}}'
+Extraction attempt failed with openai: Failed to parse JSON from LLM response: Expecting value...
+Attempting fallback to Gemini...
+```
+
+For full debug logging:
 
 ```python
 import logging
