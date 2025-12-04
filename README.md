@@ -318,10 +318,6 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 ```
 
-## 📝 License
-
-MIT License - Feel free to use in your projects!
-
 ## 🤝 Contributing
 
 Contributions welcome! Please:
